@@ -33,7 +33,7 @@
         const url = new URL(location.href);
         const idParam = url.searchParams.get('id');
         if (!idParam || isNaN(idParam)) {
-            console.warn('[自动连播] 未找到有效 id 参数，跳过跳转');
+            console.warn('[自动连播] ❗ 未找到有效 id 参数，跳过跳转');
             return;
         }
 
@@ -52,7 +52,7 @@
                 // 先尝试正常播放
                 const bigPlayBtn = document.querySelector('.vjs-big-play-button');
                 if (video && bigPlayBtn && video.paused) {
-                    console.log('[自动连播] 点击大播放按钮');
+                    console.log('[自动连播] ▶️ 点击大播放按钮');
                     bigPlayBtn.click()
                         .then(() => {
                         console.log('[自动连播] ▶️ 自动播放成功');
@@ -91,7 +91,8 @@
         console.log('[自动连播] ✅ 检测到视频元素');
 
         // ✅ 新增：首次检测到视频即尝试自动播放
-        attemptAutoplay(video);
+        setTimeout(() => {attemptAutoplay(video);
+                                }, 0);
 
         // 每 3 秒打印进度 + 检查是否完成
         durationCheckInterval = setInterval(() => {
