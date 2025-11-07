@@ -107,7 +107,7 @@
         panel.className = 'auto-play-control';
         panel.innerHTML = `
             <h3>自动连播设置</h3>
-            <textarea placeholder="请输入ID范围，每行一个范围，格式如下：
+            <textarea placeholder="请输入网址结尾的ID范围，每行一个范围，格式如下：
 771843-771849
 771850-771853"></textarea>
             <div class="btn-group">
