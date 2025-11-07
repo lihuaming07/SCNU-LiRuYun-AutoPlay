@@ -2,23 +2,21 @@
 // @name         砺儒云课堂自动连播
 // @namespace    http://tampermonkey.net/
 // @version      2025-11-07
-// @description  读取砺儒云课堂视频播放进度并按设置的ID范围自动跳转（范围会本地保存）
+// @description  读取砺儒云课堂视频播放进度并按设置的ID范围自动跳转（范围会本地保存，解决播放完未完成卡死问题）
 // @author       Cyb3rBlad3
 // @match        https://moodle.scnu.edu.cn/mod/fsresource/*
 // @icon         https://qzapp.qlogo.cn/qzapp/101983660/5AE3826AD44495A694B607591F8581B8/100
 // @grant        none
 // ==/UserScript==
 
-
-
-
 (function () {
     'use strict';
 
     let hasRedirected = false;
-    let durationCheckInterval = null;
+    let completionCheckInterval = null;
     let idRanges = [];  // 存储解析后的ID范围数组
     const STORAGE_KEY = 'lrCloudClassroomRanges';  // 本地存储键名
+    let videoElement = null;  // 存储视频元素引用，方便全局使用
 
     // 从本地存储加载范围设置
     const loadFromStorage = () => {
@@ -288,47 +286,80 @@
         }
     };
 
-    // 🔍 等待视频并启用监控/自动播放
+    // 🕒 视频播放完毕但未检测到已完成时，倒退20秒并继续播放
+    const handleVideoEndedWithoutCompletion = () => {
+        if (!videoElement || hasRedirected) return;
+
+        // 计算倒退后的时间（不小于0）
+        const backTime = Math.max(0, videoElement.duration - 20);
+        console.log(`[自动连播] ⏮️ 视频播放完毕但未检测到"已完成"，倒退至 ${formatTime(backTime)} 继续播放`);
+
+        // 设置进度并播放
+        videoElement.currentTime = backTime;
+        // 确保视频处于播放状态（防止暂停）
+        if (videoElement.paused) {
+            videoElement.play().catch(err => {
+                console.warn('[自动连播] ⚠️ 倒退后播放失败，尝试静音播放', err);
+                videoElement.muted = true;
+                videoElement.play().catch(err2 => {
+                    console.error('[自动连播] ❌ 倒退后播放失败，请手动点击播放', err2);
+                });
+            });
+        }
+    };
+
+    // 检测完成状态（监听.tips-completion文本变化）
+    const checkCompletionStatus = () => {
+        const completionElem = document.querySelector('.tips-completion');
+        if (completionElem) {
+            const statusText = completionElem.textContent.trim();
+            console.log(`[自动连播] 📋 当前完成状态：${statusText}`);
+            if (statusText === '已完成') {
+                clearInterval(completionCheckInterval);
+                redirectNext();
+            } else {
+                // 状态未完成时，检查视频是否已播放完毕
+                if (videoElement && videoElement.ended) {
+                    handleVideoEndedWithoutCompletion();
+                }
+            }
+        } else {
+            // 未找到状态元素时，也检查视频是否已播放完毕（防止状态元素加载慢）
+            if (videoElement && videoElement.ended) {
+                handleVideoEndedWithoutCompletion();
+            }
+        }
+    };
+
+    // 等待视频并启用监控
     const waitForVideo = () => {
-        const video = document.querySelector('video');
-        if (!video) {
+        videoElement = document.querySelector('video');
+        if (!videoElement) {
             setTimeout(waitForVideo, 1000);
             return;
         }
-
         console.log('[自动连播] ✅ 检测到视频元素');
 
         // 首次检测到视频即尝试自动播放
         setTimeout(() => {
-            attemptAutoplay(video);
+            attemptAutoplay(videoElement);
         }, 0);
 
-        // 每 3 秒打印进度 + 检查是否完成
-        durationCheckInterval = setInterval(() => {
+        // 监听视频播放结束事件（提前拦截，防止卡死）
+        videoElement.addEventListener('ended', () => {
+            console.log('[自动连播] ⏹️ 视频播放结束事件触发');
+            // 延迟1秒检查状态，给系统一点时间更新"已完成"状态
+            setTimeout(checkCompletionStatus, 1000);
+        }, { once: false });
+
+        // 每5秒检测一次完成状态
+        completionCheckInterval = setInterval(() => {
             if (hasRedirected) {
-                clearInterval(durationCheckInterval);
+                clearInterval(completionCheckInterval);
                 return;
             }
-
-            if (isNaN(video.duration) || video.duration <= 0) {
-                console.log('[自动连播] ⏳ 元数据加载中...');
-                return;
-            }
-
-            const progress = (video.currentTime / video.duration) * 100;
-            console.log(
-                `[自动连播] 📊 进度：${progress.toFixed(2)}% ` +
-                `(${formatTime(video.currentTime)} / ${formatTime(video.duration)})`
-            );
-
-            if (video.currentTime >= video.duration - 0.5) {
-                clearInterval(durationCheckInterval);
-                redirectNext();
-            }
-        }, 3000);
-
-        // 补充 ended 事件兜底
-        video.addEventListener('ended', redirectNext, { once: true });
+            checkCompletionStatus();
+        }, 5000);
     };
 
     // 初始化
