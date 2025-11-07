@@ -12,3 +12,4 @@
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/)
 2. 点击安装链接 → [lr-cloud-autoplay.user.js](https://github.com/lihuaming/repo/raw/main/lr-cloud-autoplay.user.js)
    > 💡 或直接拖拽 `.user.js` 文件到 Tampermonkey 面板
+3. 前往浏览器设置，在自动播放的设置中，允许媒体自动播放列表 添加砺儒云课堂的域名：moodle.scnu.edu.cn
